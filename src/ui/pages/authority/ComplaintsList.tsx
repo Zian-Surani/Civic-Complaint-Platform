@@ -1,0 +1,223 @@
+import { useEffect, useState } from "react";
+import { Link } from "react-router-dom";
+import { useAuth } from "../../hooks/useAuth";
+import { supabase } from "../../integrations/supabase/client";
+import { PremiumLayout, authorityNavItems } from "../../components/layouts/PremiumLayout";
+import { PremiumCard, PremiumCardContent } from "../../components/ui/premium-card";
+import { Button } from "../../components/ui/button";
+import { Input } from "../../components/ui/input";
+import { Badge } from "../../components/ui/badge";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "../../components/ui/select";
+import { SeverityBadge, StatusBadge, SlaIndicator } from "../../components/badges/PremiumBadges";
+import { FileText, Search, MapPin, Filter, Clock } from "lucide-react";
+import type { Database } from "../../integrations/supabase/types";
+import { normalizeStatus } from "../../lib/status-utils";
+
+type SeverityLevel = string;
+type ComplaintStatus = string;
+
+interface Complaint {
+  id: string;
+  title: string;
+  description: string;
+  status: ComplaintStatus;
+  severity: SeverityLevel;
+  sla_deadline: string | null;
+  is_sla_breached: boolean;
+  created_at: string;
+  category_name?: string;
+  ward_name?: string;
+}
+
+export default function AuthorityComplaintsList() {
+  const { user, profile } = useAuth();
+  const [complaints, setComplaints] = useState<Complaint[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [search, setSearch] = useState("");
+  const [statusFilter, setStatusFilter] = useState<string>("all");
+  const [severityFilter, setSeverityFilter] = useState<string>("all");
+
+  useEffect(() => {
+    if (!user) return;
+
+    const fetchComplaints = async () => {
+      if (!profile?.authority_id) {
+        setComplaints([]);
+        setLoading(false);
+        return;
+      }
+
+      const { data: wardsData } = await supabase
+        .from("wards")
+        .select("id")
+        .eq("authority_id", profile.authority_id);
+
+      const wardIds = (wardsData || []).map((w) => w.id);
+      if (wardIds.length === 0) {
+        setComplaints([]);
+        setLoading(false);
+        return;
+      }
+
+      let complaintsQuery = supabase
+        .from("complaints")
+        .select(`id, title, description, status, priority, sla_deadline, is_sla_breached, created_at, complaint_categories (name), wards (name)`);
+
+      if (wardIds.length > 0) {
+        complaintsQuery = complaintsQuery.or(`assigned_to.eq.${user.id},ward_id.in.(${wardIds.join(",")})`);
+      } else {
+        complaintsQuery = complaintsQuery.eq("assigned_to", user.id);
+      }
+
+      const { data } = await complaintsQuery.order("created_at", { ascending: false });
+
+      if (data) {
+        setComplaints(
+          data.map((c: any) => ({
+            ...c,
+            severity: c.priority,
+            category_name: c.complaint_categories?.name,
+            ward_name: c.wards?.name,
+          }))
+        );
+      }
+      setLoading(false);
+    };
+
+    fetchComplaints();
+
+    const channel = supabase
+      .channel("authority-complaints-list")
+      .on("postgres_changes", { event: "*", schema: "public", table: "complaints" }, () => fetchComplaints())
+      .subscribe();
+
+    return () => { supabase.removeChannel(channel); };
+  }, [user, profile?.authority_id]);
+
+  const filteredComplaints = complaints.filter((c) => {
+    const matchesSearch = c.title.toLowerCase().includes(search.toLowerCase()) ||
+      c.description.toLowerCase().includes(search.toLowerCase());
+    const matchesStatus = statusFilter === "all" || normalizeStatus(c.status) === normalizeStatus(statusFilter);
+    const matchesSeverity = severityFilter === "all" || c.severity === severityFilter;
+    return matchesSearch && matchesStatus && matchesSeverity;
+  });
+
+  return (
+    <PremiumLayout navItems={authorityNavItems} title="Complaints">
+      <div className="space-y-6">
+        <div className="fade-in">
+          <h2 className="text-2xl font-semibold tracking-tight">Ward Complaints</h2>
+          <p className="text-muted-foreground mt-1">Manage and resolve complaints in your assigned wards</p>
+        </div>
+
+        <div className="flex flex-col gap-4 sm:flex-row slide-up">
+          <div className="relative flex-1">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+            <Input
+              placeholder="Search complaints..."
+              className="pl-10 rounded-xl"
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+            />
+          </div>
+          <Select value={statusFilter} onValueChange={setStatusFilter}>
+            <SelectTrigger className="w-full sm:w-40 rounded-xl">
+              <Filter className="mr-2 h-4 w-4" />
+              <SelectValue placeholder="Status" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All Status</SelectItem>
+              <SelectItem value="Raised">Raised</SelectItem>
+              <SelectItem value="Assigned">Assigned</SelectItem>
+              <SelectItem value="In_Progress">In Progress</SelectItem>
+              <SelectItem value="Resolved">Resolved</SelectItem>
+              <SelectItem value="Closed">Closed</SelectItem>
+            </SelectContent>
+          </Select>
+          <Select value={severityFilter} onValueChange={setSeverityFilter}>
+            <SelectTrigger className="w-full sm:w-40 rounded-xl">
+              <SelectValue placeholder="Severity" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All Severity</SelectItem>
+              <SelectItem value="critical">Critical</SelectItem>
+              <SelectItem value="high">High</SelectItem>
+              <SelectItem value="medium">Medium</SelectItem>
+              <SelectItem value="low">Low</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
+
+        {loading ? (
+          <div className="space-y-3">
+            {[...Array(5)].map((_, i) => (
+              <div key={i} className="shimmer h-24 rounded-xl" />
+            ))}
+          </div>
+        ) : filteredComplaints.length === 0 ? (
+          <PremiumCard>
+            <PremiumCardContent className="flex flex-col items-center justify-center py-16">
+              <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-muted mb-4">
+                <FileText className="h-7 w-7 text-muted-foreground" />
+              </div>
+              <h3 className="font-medium">No complaints found</h3>
+              <p className="text-sm text-muted-foreground mt-1">
+                {search || statusFilter !== "all" || severityFilter !== "all"
+                  ? "Try adjusting your filters"
+                  : "No complaints in your assigned wards"}
+              </p>
+            </PremiumCardContent>
+          </PremiumCard>
+        ) : (
+          <div className="space-y-3">
+            {filteredComplaints.map((complaint, index) => (
+              <Link
+                key={complaint.id}
+                to={`/authority/complaints/${complaint.id}`}
+                className="block"
+              >
+                <PremiumCard className="transition-all duration-200 hover:shadow-soft-md hover:border-primary/20 cursor-pointer fade-in" style={{ animationDelay: `${index * 30}ms` }}>
+                  <PremiumCardContent className="p-4">
+                    <div className="flex items-start justify-between gap-4">
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-2 mb-1">
+                          <h3 className="font-medium truncate">{complaint.title}</h3>
+                          <Badge variant="outline" className="text-xs rounded-md px-1.5 py-0 h-5 shrink-0">
+                            {complaint.status}
+                          </Badge>
+                        </div>
+                        <p className="text-sm text-muted-foreground line-clamp-1 mb-2">
+                          {complaint.description}
+                        </p>
+                        <div className="flex items-center gap-4 text-xs text-muted-foreground">
+                          <span className="flex items-center gap-1">
+                            <MapPin className="h-3 w-3" />
+                            {complaint.ward_name}
+                          </span>
+                          <span>{complaint.category_name}</span>
+                          <span className="flex items-center gap-1">
+                            <Clock className="h-3 w-3" />
+                            {new Date(complaint.created_at).toLocaleDateString()}
+                          </span>
+                        </div>
+                      </div>
+                      <div className="flex flex-col items-end gap-2 shrink-0">
+                        <SlaIndicator deadline={complaint.sla_deadline} breached={complaint.is_sla_breached} />
+                        <div className="flex items-center gap-1">
+                          <SeverityBadge severity={complaint.severity} size="sm" />
+                          <StatusBadge status={complaint.status} size="sm" />
+                        </div>
+                      </div>
+                    </div>
+                  </PremiumCardContent>
+                </PremiumCard>
+              </Link>
+            ))}
+          </div>
+        )}
+      </div>
+    </PremiumLayout>
+  );
+}
+
+
