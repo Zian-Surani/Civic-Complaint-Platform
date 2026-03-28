@@ -54,6 +54,50 @@ The Civic Complaint Platform is a comprehensive solution for managing civic issu
 - **Search & Filtering**: Advanced search and filtering capabilities
 - **Map View**: Location-based complaint visualization (ward intelligence)
 
+## Application Output
+
+The following screenshots show the current UI across the landing page, citizen workflows, authority operations, and admin dashboards.
+
+### Landing and Authentication
+
+| Landing Page | Unified Login |
+| --- | --- |
+| ![Landing page](./images/Screenshot%202026-03-28%20123641.png) | ![Unified login page](./images/Screenshot%202026-03-28%20123648.png) |
+
+### Citizen Experience
+
+| Citizen Dashboard | My Complaints |
+| --- | --- |
+| ![Citizen dashboard](./images/Screenshot%202026-03-28%20123712.png) | ![Citizen complaints list](./images/Screenshot%202026-03-28%20123718.png) |
+
+| New Complaint Form | |
+| --- | --- |
+| ![New complaint form](./images/Screenshot%202026-03-28%20123723.png) | |
+
+### Authority Operations
+
+| Authority Dashboard | Ward Complaints |
+| --- | --- |
+| ![Authority dashboard](./images/Screenshot%202026-03-28%20123807.png) | ![Ward complaints](./images/Screenshot%202026-03-28%20123812.png) |
+
+| Assigned Wards | |
+| --- | --- |
+| ![Assigned wards overview](./images/Screenshot%202026-03-28%20123817.png) | |
+
+### Admin Console
+
+| System Overview | Analytics Dashboard |
+| --- | --- |
+| ![Admin system overview](./images/Screenshot%202026-03-28%20123839.png) | ![Admin analytics dashboard](./images/Screenshot%202026-03-28%20123900.png) |
+
+| Analytics Detail | User Management |
+| --- | --- |
+| ![Analytics detail charts](./images/Screenshot%202026-03-28%20123846.png) | ![User management screen](./images/Screenshot%202026-03-28%20123907.png) |
+
+| System Configuration | |
+| --- | --- |
+| ![System configuration screen](./images/Screenshot%202026-03-28%20123912.png) | |
+
 ## Tech Stack
 
 ### Frontend
